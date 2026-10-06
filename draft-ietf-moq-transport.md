@@ -3030,6 +3030,7 @@ AUTHORIZATION_DATA Message {
 AUTHORIZATION_OK Message {
   Type (vi64) = TBD3,
   Length (16),
+  Opaque Payload (..),
 }
 ~~~
 {: #moq-transport-authorization-ok format title="MOQT AUTHORIZATION_OK Message"}
