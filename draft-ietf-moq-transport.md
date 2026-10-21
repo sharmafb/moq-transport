@@ -52,6 +52,7 @@ author:
 
 normative:
   QUIC: RFC9000
+  SHA2: RFC6234
   WebTransport: I-D.ietf-webtrans-http3
 
 informative:
@@ -1629,6 +1630,26 @@ requires the extension or the endpoint knows the peer supports the
 extension. If an unsupported Message Parameter is used, the peer will be
 unable to process it and the session will be terminated. See {{message-params}}.
 
+### Session Authorization Exchanges {#session-authorization}
+
+Authorization messages carry session-scoped challenges, responses, and
+credential updates. They are sent on the control streams after SETUP and do not
+apply to a specific request. Request-scoped authorization is carried in request
+messages on the corresponding request stream.
+
+Either endpoint can initiate an exchange by sending AUTHORIZATION_REQUEST on
+its control stream after receiving the peer's SETUP. The client generates even
+Authorization IDs starting at 0, and the server generates odd Authorization IDs
+starting at 1. Each endpoint increments its Authorization ID by 2 for each new
+exchange.
+
+All messages in an exchange carry the same Authorization ID.
+AUTHORIZATION_DATA can be sent by either endpoint as defined by the Auth Control
+Format. Exactly one AUTHORIZATION_OK or AUTHORIZATION_ERROR ends the exchange.
+An endpoint that receives a duplicate AUTHORIZATION_REQUEST, a message for an
+unknown Authorization ID, or a message after the exchange has ended MUST close
+the session with `PROTOCOL_VIOLATION`.
+
 ### 0-RTT {#zero-rtt}
 
 QUIC supports 0-RTT ({{Section 2.3 of ?RFC8446}}), but WebTransport over QUIC
@@ -2563,6 +2584,19 @@ REGISTER without waiting for a response.
 Senders MUST NOT send DELETE for an alias while any message using USE_ALIAS with
 that alias has not received a response.
 
+### Authorization Token Digests {#authorization-token-digests}
+
+Authorization messages refer to tokens using a SHA-256 {{SHA2}} digest of the
+resolved Token Type and Token Value. The Token Digest is computed as follows:
+
+~~~
+SHA-256(
+  "MOQT-AUTH-TOKEN" || 0x00 ||
+  canonical_vi64(Token Type) ||
+  Token Value
+)
+~~~
+
 # Control Messages {#message}
 
 MOQT uses a pair of unidirectional streams to exchange control messages, as
@@ -2636,6 +2670,14 @@ new request stream.
 | 0x7    | REQUEST_OK ({{message-request-ok}})            | Request          |
 |--------|------------------------------------------------|------------------|
 | 0x5    | REQUEST_ERROR ({{message-request-error}})      | Request          |
+|--------|------------------------------------------------|------------------|
+| TBD1   | AUTHORIZATION_REQUEST ({{message-authorization-request}}) | Control |
+|--------|------------------------------------------------|------------------|
+| TBD2   | AUTHORIZATION_DATA ({{message-authorization-data}}) | Control       |
+|--------|------------------------------------------------|------------------|
+| TBD3   | AUTHORIZATION_OK ({{message-authorization-ok}}) | Control         |
+|--------|------------------------------------------------|------------------|
+| TBD4   | AUTHORIZATION_ERROR ({{message-authorization-error}}) | Control    |
 |--------|------------------------------------------------|------------------|
 
 An endpoint that receives an unknown message type MUST close the session.
@@ -2965,6 +3007,67 @@ each retry interval so that retries are spread out over time.  A Retry Interval
 value of 1 indicates the request can be retried immediately.
 
 The error codes used in REQUEST_ERROR are defined in {{request-error-codes}}.
+
+## AUTHORIZATION_REQUEST {#message-authorization-request}
+
+~~~
+AUTHORIZATION_REQUEST Message {
+  Type (vi64) = TBD1,
+  Length (16),
+  Authorization ID (vi64),
+  Auth Control Format (vi64),
+  Token Digest Count (vi64),
+  Token Digests (256) ...,
+  Opaque Payload (..),
+}
+~~~
+{: #moq-transport-authorization-request format title="MOQT AUTHORIZATION_REQUEST Message"}
+
+The Authorization ID correlates messages sent on the two control streams. The
+Auth Control Format defines the opaque payload and processing rules. Token
+Digests identify the session tokens to which the exchange applies; an empty
+list means that no specific token is identified.
+
+## AUTHORIZATION_DATA {#message-authorization-data}
+
+~~~
+AUTHORIZATION_DATA Message {
+  Type (vi64) = TBD2,
+  Length (16),
+  Authorization ID (vi64),
+  Opaque Payload (..),
+}
+~~~
+{: #moq-transport-authorization-data format title="MOQT AUTHORIZATION_DATA Message"}
+
+## AUTHORIZATION_OK {#message-authorization-ok}
+
+~~~
+AUTHORIZATION_OK Message {
+  Type (vi64) = TBD3,
+  Length (16),
+  Authorization ID (vi64),
+  Opaque Payload (..),
+}
+~~~
+{: #moq-transport-authorization-ok format title="MOQT AUTHORIZATION_OK Message"}
+
+## AUTHORIZATION_ERROR {#message-authorization-error}
+
+~~~
+AUTHORIZATION_ERROR Message {
+  Type (vi64) = TBD4,
+  Length (16),
+  Authorization ID (vi64),
+  Error Code (vi64),
+  Retry Interval (vi64),
+  Opaque Payload (..),
+}
+~~~
+{: #moq-transport-authorization-error format title="MOQT AUTHORIZATION_ERROR Message"}
+
+The Auth Control Format defines the Error Code and opaque payload. Retry
+Interval has the same semantics as in REQUEST_ERROR ({{message-request-error}}).
 
 ## REQUEST_UPDATE {#message-request-update}
 
